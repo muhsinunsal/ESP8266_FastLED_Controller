@@ -1,3 +1,14 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WiFiMulti.h>
+#include <WebSocketsServer.h>
+#include <ESP8266WebServer.h>
+#include <ESP8266mDNS.h>
+#include <Hash.h>
+#include <ArduinoJson.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
+#include <FS.h>
+
 #include <FastLED.h>
 
 #include <IRremoteESP8266.h>
@@ -13,6 +24,137 @@ CRGB leds[300];
 
 IRrecv irrecv(IR_SENSOR_PIN);
 decode_results results;
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "tr.pool.ntp.org");
+
+ESP8266WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
+
+void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length) {
+  switch (type) {
+    case WStype_DISCONNECTED:
+      //Serial.printf("[%s] ", timeClient.getFormattedTime().c_str());
+      Serial.printf("[%u] Disconnected!\n", num);
+      break;
+
+    case WStype_CONNECTED:
+      {
+        //Serial.printf("[%s] ", timeClient.getFormattedTime().c_str());
+        IPAddress ip = webSocket.remoteIP(num);
+        Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+        // send message to client
+        //sendBooterJson(num, payload, length);
+
+        webSocket.sendTXT(num, String(num).c_str());
+      }
+      break;
+
+    case WStype_TEXT:
+      //Serial.printf("[%s] [%u] ", timeClient.getFormattedTime().c_str(), num);
+
+      handleWebSocketEventTXT(num, payload, length);
+
+
+      // send message to client
+      // webSocket.sendTXT(num, "message here");
+      // send data to all connected clients
+      // webSocket.broadcastTXT("message here");
+
+
+
+      break;
+  }
+}
+
+void handleWebSocketEventTXT(uint8_t num, uint8_t *payload, size_t length) {
+  //ColorPackageObject package(str);
+  StaticJsonDocument<300> doc;
+
+  //Serial.printf("[%u] get Text: %S\n", num, str.c_str());
+  DeserializationError error = deserializeJson(doc, (const char *)payload, length);
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+
+  const char *type = doc["type"];  // "Color"
+
+  JsonObject package_rgb = doc["package"]["rgb"];
+  uint8_t package_rgb_red = package_rgb["red"];      // 125
+  uint8_t package_rgb_green = package_rgb["green"];  // 248
+  uint8_t package_rgb_blue = package_rgb["blue"];    // 255
+
+  JsonObject package_hsv = doc["package"]["hsv"];
+  uint8_t package_hsv_hue = package_hsv["hue"];                // 183
+  uint8_t package_hsv_saturation = package_hsv["saturation"];  // 51
+  uint8_t package_hsv_value = package_hsv["value"];            // 100
+
+  Serial.printf("%s | H: %-3d S: %-3d V: %-3d | R: %-3d G: %-3d B: %-3d\n", type, (uint8_t)package_hsv_hue, (uint8_t)package_hsv_saturation, (uint8_t)package_hsv_value, (uint8_t)package_rgb_red, (uint8_t)package_rgb_green, (uint8_t)package_rgb_blue);
+}
+/*
+void sendBooterJson(uint8_t num, uint8_t *payload, size_t length) {
+  String output;
+  StaticJsonDocument<192> doc;
+
+  doc["type"] = "Starting_Mod";
+  doc["mode"] = "Plain_Mod";
+
+  JsonObject package = doc.createNestedObject("package");
+
+  JsonObject package_rgb = package.createNestedObject("rgb");
+  package_rgb["red"] = 1;
+  package_rgb["green"] = 2;
+  package_rgb["blue"] = 3;
+
+  JsonObject package_hsv = package.createNestedObject("hsv");
+  package_hsv["hue"] = starterColor.hue;
+  package_hsv["saturation"] = starterColor.saturation;
+  package_hsv["value"] = starterColor.value;
+
+  serializeJson(doc, output);
+
+  webSocket.sendTXT(num, output.c_str());
+}
+*/
+void startWifi() {
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.hostname("ESP8266_FastLED_Controller");
+  Serial.println("");
+  Serial.print("Connecting to WiFi ");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(50);
+    Serial.print(".");
+    box.indicatorLed->toggle();
+  }
+
+  delay(1500);
+  box.indicatorLed->turnOff();
+  Serial.println(" connected.\n");
+  Serial.print("Can connect with: ");
+  Serial.print("http://");
+  Serial.println(WiFi.localIP());
+  startmDNS();
+}
+
+void startmDNS() {
+  if (MDNS.begin(DNS_URL)) {
+
+    Serial.print("Can also connect from: ");
+    Serial.print("http://");
+    Serial.print("ledbox");
+    Serial.print(".local\n");
+  }
+  MDNS.addService("http", "tcp", 80);
+}
+
+void tickServer() {
+  MDNS.update();
+  server.handleClient();
+  webSocket.loop();
+}
 
 typedef void (*Pattern)();
 typedef Pattern PatternList[];
@@ -226,11 +368,53 @@ void setup() {
 
   FastLED.setBrightness(box.max_Brightness);
   FastLED.setMaxPowerInVoltsAndMilliamps(MAXVOLT, MAXMILLIAMP);
+
+
+  startWifi();
+  timeClient.begin();
+  SPIFFS.begin();
+  webSocket.begin();
+  webSocket.onEvent(webSocketEvent);
+
+  server.onNotFound([]() {
+    if (!handleFileRead(server.uri()))
+      handleNotFound();
+  });
+
+  server.begin();
 };
+
+void handleNotFound() {
+  server.send(404, "text/html", "<html><body><p style=\"color:red;font-weight:bold;\">404 Error</p></body></html>");
+}
+
+String getContentType(String filename) {
+  if (filename.endsWith(".html")) return "text/html";
+  else if (filename.endsWith(".css")) return "text/css";
+  else if (filename.endsWith(".js")) return "application/javascript";
+  else if (filename.endsWith(".ico")) return "image/x-icon";
+  return "text/plain";
+}
+
+bool handleFileRead(String path) {
+  if (path.endsWith("/")) path += "index.html";
+  String contentType = getContentType(path);
+  if (SPIFFS.exists(path)) {
+    File file = SPIFFS.open(path, "r");
+    size_t sent = server.streamFile(file, contentType);
+    file.close();
+    return true;
+  }
+  Serial.println("handleFileRead: " + path);
+  Serial.println("\tFile Not Found");
+  return false;
+}
 
 
 void loop() {
   handleCircuitBox();
+
+  tickServer();
 
   box.announceSecuritySwitchChange();
   if (box.getSecuritySwitchStatus()) {
@@ -241,7 +425,7 @@ void loop() {
   EVERY_N_SECONDS(5) {
     box.handleLightSensor(20);
   }
-  
+
   //Updates target palette according the  operations done to paletteCounter
   box.targetPalette = palettes[box.paletteCounter];
 

@@ -44,10 +44,10 @@ void CircuitBox::announceSecuritySwitchChange() {
     securitySwitchStatus = newSecuritySwitchStatus;
     Serial.print("Security switch switched:");
     if (securitySwitchStatus) {
-      reciver.resume();
+      //reciver.resume();
       Serial.println("ON");
     } else {
-      reciver.pause();
+      //reciver.pause();
       Serial.println("OFF");
     }
     indicatorLed->on_off(200);

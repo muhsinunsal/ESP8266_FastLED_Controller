@@ -25,5 +25,9 @@
 //Variable for false commands
 #define POTANTIMETER_SENSIVITY_PERCENTAGE 5
 
+#define WIFI_SSID "WIFI_NAME"
+#define WIFI_PASSWORD "WIFI_PASSWORD"
+
+#define DNS_URL "esp8266_fastled"
 
 #endif
