@@ -91,18 +91,26 @@ void handleWebSocketEventTXT(uint8_t num, uint8_t *payload, size_t length) {
     Serial.println(error.f_str());
     return;
   }
-  const char *type = doc["type"];  // "Color"
+  const char *type = doc["type"];
+  // "Brightness"
+  if (!strcmp(type, "Brightness")) {
+    float package_brightness = doc["package"]["alpha"];
+    Serial.printf("%f\n", package_brightness);
+    box.current_Brightness = map(package_brightness * 100, 0, 100, 0, box.max_Brightness);
+    FastLED.setBrightness(box.current_Brightness);
+  }
 
-  if (type = "Color") {
+  // "Color"
+  if (!strcmp(type, "Color")) {
     JsonObject package_rgb = doc["package"]["rgb"];
-    uint8_t package_rgb_red = package_rgb["red"];      // 125
-    uint8_t package_rgb_green = package_rgb["green"];  // 248
-    uint8_t package_rgb_blue = package_rgb["blue"];    // 255
+    uint8_t package_rgb_red = package_rgb["red"];
+    uint8_t package_rgb_green = package_rgb["green"];
+    uint8_t package_rgb_blue = package_rgb["blue"];
 
     JsonObject package_hsv = doc["package"]["hsv"];
-    uint8_t package_hsv_hue = package_hsv["hue"];                // 183
-    uint8_t package_hsv_saturation = package_hsv["saturation"];  // 51
-    uint8_t package_hsv_value = package_hsv["value"];            // 100
+    uint8_t package_hsv_hue = package_hsv["hue"];
+    uint8_t package_hsv_saturation = package_hsv["saturation"];
+    uint8_t package_hsv_value = package_hsv["value"];
 
     Serial.printf("%s | H: %-3d S: %-3d V: %-3d | R: %-3d G: %-3d B: %-3d\n", type, (uint8_t)package_hsv_hue, (uint8_t)package_hsv_saturation, (uint8_t)package_hsv_value, (uint8_t)package_rgb_red, (uint8_t)package_rgb_green, (uint8_t)package_rgb_blue);
     lastWebColor.RGB = CRGB(package_rgb_red, package_rgb_green, package_rgb_blue);
@@ -252,7 +260,7 @@ PatternAndNameList patterns = {
   { noise16_2, "Noise16_2" },
   { sawtooth, "Sawtooth" },
   { redColor, "Red" },
-  { webColor, "Web Color"}
+  { webColor, "Web Color" }
 };
 
 const CRGBPalette16 palettes[] = {

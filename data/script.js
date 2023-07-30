@@ -1,6 +1,6 @@
 class Package {
     /*
-    ColorPackage.body: {
+        Package.body: {
         type: string;
         package: object;
     }
@@ -10,6 +10,22 @@ class Package {
         this.package = pack;
     }
 }
+
+class BrightnessPackage extends Package {
+    /*
+        ColorPackage.body: {
+        type: "Color";
+        package: {
+            brightness: double;
+            };
+        }
+    */
+    constructor(alpha = 1) {
+        super("Brightness");
+        this.package = { "alpha": alpha };
+    }
+}
+
 class ColorPackage extends Package {
     /*
         ColorPackage.body: {
@@ -20,6 +36,7 @@ class ColorPackage extends Package {
                 green: number;
                 blue: number;
             };
+            alpha: number,
             hsv: {
                 hue: number;
                 saturation: number;
@@ -57,15 +74,26 @@ socket.onopen = function (e) {
 
 
 
-    let old_package = new ColorPackage();
+    let oldColor_package = new ColorPackage();
+    let oldBrightness_package = new BrightnessPackage();
+
     colorPicker.on("color:change", (color) => {
-        let new_package = new ColorPackage(color.red, color.green, color.blue, color.hue, color.saturation, color.value);
-
-
-
+        let newColor_package = new ColorPackage(color.red, color.green, color.blue, color.hue, color.saturation, color.value);
+        let newBrightness_package = new BrightnessPackage(color.alpha)
         if (socket.readyState === socket.OPEN) {
-            socket.send(JSON.stringify(new_package));
-            console.log(new_package)
+            //Check if Color is changed if not don't send
+            if (JSON.stringify(oldColor_package) != JSON.stringify(newColor_package)) {
+                socket.send(JSON.stringify(newColor_package));
+                console.table(newColor_package.package);
+                oldColor_package = newColor_package;
+            }
+            //Check if Brightness is changed if not don't send
+            if (JSON.stringify(oldBrightness_package) != JSON.stringify(newBrightness_package)) {
+                socket.send(JSON.stringify(newBrightness_package));
+                console.table(newBrightness_package.package);
+                oldBrightness_package = newBrightness_package;
+            }
+
         } else {
             socket_status_symbol.style.backgroundColor = "#800000"; // #88534D
             socket_status_symbol.innerHTML = "✖";
@@ -102,6 +130,9 @@ var colorPicker = new iro.ColorPicker("main", {
         },
         {
             component: iro.ui.Slider,
+            options: {
+                sliderType: 'alpha'
+            }
         },
     ],
     layoutDirection: sliderDirection,

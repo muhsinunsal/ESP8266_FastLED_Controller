@@ -20,7 +20,7 @@
 #define MAXMILLIAMP 2000
 
 #define LED_NUMBER 300 // 60 leds per meter * 5 meter
-#define MAX_MAX_BRIGHTNESS 225
+#define MAX_MAX_BRIGHTNESS 255
 
 //Variable for false commands
 #define POTANTIMETER_SENSIVITY_PERCENTAGE 5
