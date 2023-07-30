@@ -77,8 +77,7 @@ socket.onerror = function (e) {
 };
 socket.onmessage = function (e) {
 
-    console.log(e.data)
-    console.log("[socket] " + e.data);
+    console.log("[SOCKET RESPONSE] " + e.data);
     
     if (e.data.includes("Response_Color")) {
         const starterColor = JSON.parse(e.data);

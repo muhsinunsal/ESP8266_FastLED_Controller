@@ -18,6 +18,7 @@
 #include "CircuitBox.h"
 #include "IRremoteCodes.h"
 #include "configs.h"
+#include "utilty.h"
 
 CircuitBox box;
 CRGB leds[300];
@@ -44,28 +45,40 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
         IPAddress ip = webSocket.remoteIP(num);
         Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
         // send message to client
-        //sendBooterJson(num, payload, length);
+        sendBooterJson(num, payload, length);
 
         webSocket.sendTXT(num, String(num).c_str());
       }
       break;
 
     case WStype_TEXT:
-      //Serial.printf("[%s] [%u] ", timeClient.getFormattedTime().c_str(), num);
+      IPAddress ip = webSocket.remoteIP(num);
+      //Check if security switch is on
+      if (box.getSecuritySwitchStatus()) {
+        //Swtich turned on
+        Serial.printf("[%u] Request from %d.%d.%d.%d is blocked by security switch.\n", num, ip[0], ip[1], ip[2], ip[3]);
+      } else {
+        //Swtich turned off
 
-      handleWebSocketEventTXT(num, payload, length);
+        //Serial.printf("[%s] [%u] ", timeClient.getFormattedTime().c_str(), num);
 
-
-      // send message to client
-      // webSocket.sendTXT(num, "message here");
-      // send data to all connected clients
-      // webSocket.broadcastTXT("message here");
-
-
-
+        handleWebSocketEventTXT(num, payload, length);
+        // send message to client
+        // webSocket.sendTXT(num, "message here");
+        // send data to all connected clients
+        // webSocket.broadcastTXT("message here");
+      }
       break;
   }
 }
+typedef struct {
+  CRGB RGB;
+  CHSV HSV;
+} Colorpackage;
+
+Colorpackage startingWebColor = { CRGB(255, 255, 255), CHSV(0, 0, 100) };
+
+Colorpackage lastWebColor = startingWebColor;
 
 void handleWebSocketEventTXT(uint8_t num, uint8_t *payload, size_t length) {
   //ColorPackageObject package(str);
@@ -78,23 +91,27 @@ void handleWebSocketEventTXT(uint8_t num, uint8_t *payload, size_t length) {
     Serial.println(error.f_str());
     return;
   }
-
-
   const char *type = doc["type"];  // "Color"
 
-  JsonObject package_rgb = doc["package"]["rgb"];
-  uint8_t package_rgb_red = package_rgb["red"];      // 125
-  uint8_t package_rgb_green = package_rgb["green"];  // 248
-  uint8_t package_rgb_blue = package_rgb["blue"];    // 255
+  if (type = "Color") {
+    JsonObject package_rgb = doc["package"]["rgb"];
+    uint8_t package_rgb_red = package_rgb["red"];      // 125
+    uint8_t package_rgb_green = package_rgb["green"];  // 248
+    uint8_t package_rgb_blue = package_rgb["blue"];    // 255
 
-  JsonObject package_hsv = doc["package"]["hsv"];
-  uint8_t package_hsv_hue = package_hsv["hue"];                // 183
-  uint8_t package_hsv_saturation = package_hsv["saturation"];  // 51
-  uint8_t package_hsv_value = package_hsv["value"];            // 100
+    JsonObject package_hsv = doc["package"]["hsv"];
+    uint8_t package_hsv_hue = package_hsv["hue"];                // 183
+    uint8_t package_hsv_saturation = package_hsv["saturation"];  // 51
+    uint8_t package_hsv_value = package_hsv["value"];            // 100
 
-  Serial.printf("%s | H: %-3d S: %-3d V: %-3d | R: %-3d G: %-3d B: %-3d\n", type, (uint8_t)package_hsv_hue, (uint8_t)package_hsv_saturation, (uint8_t)package_hsv_value, (uint8_t)package_rgb_red, (uint8_t)package_rgb_green, (uint8_t)package_rgb_blue);
+    Serial.printf("%s | H: %-3d S: %-3d V: %-3d | R: %-3d G: %-3d B: %-3d\n", type, (uint8_t)package_hsv_hue, (uint8_t)package_hsv_saturation, (uint8_t)package_hsv_value, (uint8_t)package_rgb_red, (uint8_t)package_rgb_green, (uint8_t)package_rgb_blue);
+    lastWebColor.RGB = CRGB(package_rgb_red, package_rgb_green, package_rgb_blue);
+    lastWebColor.HSV = CHSV(package_hsv_hue,
+                            package_hsv_saturation,
+                            package_hsv_value);
+  }
 }
-/*
+
 void sendBooterJson(uint8_t num, uint8_t *payload, size_t length) {
   String output;
   StaticJsonDocument<192> doc;
@@ -104,21 +121,18 @@ void sendBooterJson(uint8_t num, uint8_t *payload, size_t length) {
 
   JsonObject package = doc.createNestedObject("package");
 
-  JsonObject package_rgb = package.createNestedObject("rgb");
-  package_rgb["red"] = 1;
-  package_rgb["green"] = 2;
-  package_rgb["blue"] = 3;
+  CRGB starterColor = findColorClosestToMean(leds, LED_NUMBER);
 
-  JsonObject package_hsv = package.createNestedObject("hsv");
-  package_hsv["hue"] = starterColor.hue;
-  package_hsv["saturation"] = starterColor.saturation;
-  package_hsv["value"] = starterColor.value;
+  JsonObject package_rgb = package.createNestedObject("rgb");
+  package_rgb["red"] = starterColor.red;
+  package_rgb["green"] = starterColor.green;
+  package_rgb["blue"] = starterColor.blue;
 
   serializeJson(doc, output);
 
   webSocket.sendTXT(num, output.c_str());
 }
-*/
+
 void startWifi() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   WiFi.hostname("ESP8266_FastLED_Controller");
@@ -144,7 +158,7 @@ void startmDNS() {
 
     Serial.print("Can also connect from: ");
     Serial.print("http://");
-    Serial.print("ledbox");
+    Serial.print(DNS_URL);
     Serial.print(".local\n");
   }
   MDNS.addService("http", "tcp", 80);
@@ -224,8 +238,12 @@ void sawtooth() {
     leds[cur_led] = ColorFromPalette(box.currentPalette, 0, 255, box.currentBlending);
 }
 //Simple plain red
-void plainRed() {
+void redColor() {
   solid_Color(CRGB::Red);
+}
+//Web controlled colors
+void webColor() {
+  solid_Color(lastWebColor.RGB);
 }
 
 PatternAndNameList patterns = {
@@ -233,7 +251,8 @@ PatternAndNameList patterns = {
   { fill_grad, "Fill Gradient" },
   { noise16_2, "Noise16_2" },
   { sawtooth, "Sawtooth" },
-  { plainRed, "Plain Red" },
+  { redColor, "Red" },
+  { webColor, "Web Color"}
 };
 
 const CRGBPalette16 palettes[] = {
@@ -433,8 +452,10 @@ void loop() {
   EVERY_N_MILLISECONDS(50) {
     nblendPaletteTowardPalette(box.currentPalette, box.targetPalette, 24);
   }
+
   //Run current led pattern.
   patterns[box.patternCounter].pattern();
+
 
   FastLED.show();
 };
