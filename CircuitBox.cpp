@@ -1,4 +1,5 @@
 #include "CircuitBox.h"
+#include <FastLED.h>
 
 CircuitBox::CircuitBox() {
   //Potantiometer for controlling most of box
@@ -68,7 +69,7 @@ void CircuitBox::announceControlSwitchChange() {
         Serial.println("Potantiometer mode changed to Palette");
         break;
       case 3:
-        Serial.println("Potantiometer mode changed to Patern");
+        Serial.println("Potantiometer mode changed to Pattern");
         break;
     }
 
@@ -114,22 +115,23 @@ void CircuitBox::handlePaletteChange() {
 }
 
 void CircuitBox::handleLightSensor(int lightChange) {
-  bool newLightSensorStatus = digitalRead(LIGHT_SENSOR_PIN);
+  bool newLightSensorStatus = !digitalRead(LIGHT_SENSOR_PIN);
   if (lightSensorStatus != newLightSensorStatus) {
     lightSensorStatus = newLightSensorStatus;
 
-    if (newLightSensorStatus) {
+    if (!newLightSensorStatus) {
       Serial.println("Brightness Limit Decreased.");
       //TODO Dim the brigtness slowly
       max_Brightness -= lightChange;
       current_Brightness -= lightChange;
-
-      if (current_Brightness > max_Brightness) current_Brightness = max_Brightness;
     } else {
       Serial.println("Brightness Limit Increased.");
+
       max_Brightness += lightChange;
       current_Brightness += lightChange;
     }
+    FastLED.setBrightness(current_Brightness);
+    Serial.println(current_Brightness);
   }
 }
 

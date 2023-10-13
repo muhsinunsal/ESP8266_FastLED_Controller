@@ -10,26 +10,36 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    
     <div id="container">
       <!--Select-->
       <!--https://codepen.io/raubaca/pen/bGWmZje -->
-      <div id="socket_status_symbol">
+      <div id="socket_status_symbol" class="loading">
         <div class="dot"></div>
         <div class="dot"></div>
         <div class="dot"></div>
       </div>
       <header><h1>Mode</h1></header>
       <nav>
-        <select id="mode_selector">
-          <option selected value="0">Select Me</option>
-          <option value="1">No Wrapper</option>
-          <option value="2">No JS</option>
-          <option value="3">Nice!</option>
-        </select>
+        <select
+          id="pattern_selector"
+          class="dropdown_selector"
+          style="margin-bottom: 1rem"
+        ></select>
+        <select id="palette_selector" class="dropdown_selector"></select>
       </nav>
       <main><!-- Does get filled by JS --></main>
-      <footer><h3>Hello there</h3></footer>
+      <footer>
+        <h2 style="text-align: center">Hello There</h2>
+        <h3
+          id="clientID"
+          class="loading"
+          style="text-align: center;"
+        >
+          <div class="dot"></div>
+          <div class="dot"></div>
+          <div class="dot"></div>
+        </h3>
+      </footer>
     </div>
     <script src="script.js"></script>
   </body>

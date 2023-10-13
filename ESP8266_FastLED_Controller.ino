@@ -41,11 +41,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 
     case WStype_CONNECTED:
       {
+        box.indicatorLed->on_off(300);
         //Serial.printf("[%s] ", timeClient.getFormattedTime().c_str());
         IPAddress ip = webSocket.remoteIP(num);
         Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\n", num, ip[0], ip[1], ip[2], ip[3], payload);
         // send message to client
-        sendBooterJson(num, payload, length);
+        sendStartMessage(num, payload, length);
+        sendUpdateMessage(num, payload, length, "startMessage");
 
         webSocket.sendTXT(num, String(num).c_str());
       }
@@ -53,6 +55,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 
     case WStype_TEXT:
       IPAddress ip = webSocket.remoteIP(num);
+
       //Check if security switch is on
       if (box.getSecuritySwitchStatus()) {
         //Swtich turned on
@@ -80,111 +83,21 @@ Colorpackage startingWebColor = { CRGB(255, 255, 255), CHSV(0, 0, 100) };
 
 Colorpackage lastWebColor = startingWebColor;
 
-void handleWebSocketEventTXT(uint8_t num, uint8_t *payload, size_t length) {
-  //ColorPackageObject package(str);
-  StaticJsonDocument<300> doc;
-
-  //Serial.printf("[%u] get Text: %S\n", num, str.c_str());
-  DeserializationError error = deserializeJson(doc, (const char *)payload, length);
-  if (error) {
-    Serial.print(F("deserializeJson() failed: "));
-    Serial.println(error.f_str());
-    return;
-  }
-  const char *type = doc["type"];
-  // "Brightness"
-  if (!strcmp(type, "Brightness")) {
-    float package_brightness = doc["package"]["alpha"];
-    Serial.printf("%f\n", package_brightness);
-    box.current_Brightness = map(package_brightness * 100, 0, 100, 0, box.max_Brightness);
-    FastLED.setBrightness(box.current_Brightness);
-  }
-
-  // "Color"
-  if (!strcmp(type, "Color")) {
-    JsonObject package_rgb = doc["package"]["rgb"];
-    uint8_t package_rgb_red = package_rgb["red"];
-    uint8_t package_rgb_green = package_rgb["green"];
-    uint8_t package_rgb_blue = package_rgb["blue"];
-
-    JsonObject package_hsv = doc["package"]["hsv"];
-    uint8_t package_hsv_hue = package_hsv["hue"];
-    uint8_t package_hsv_saturation = package_hsv["saturation"];
-    uint8_t package_hsv_value = package_hsv["value"];
-
-    Serial.printf("%s | H: %-3d S: %-3d V: %-3d | R: %-3d G: %-3d B: %-3d\n", type, (uint8_t)package_hsv_hue, (uint8_t)package_hsv_saturation, (uint8_t)package_hsv_value, (uint8_t)package_rgb_red, (uint8_t)package_rgb_green, (uint8_t)package_rgb_blue);
-    lastWebColor.RGB = CRGB(package_rgb_red, package_rgb_green, package_rgb_blue);
-    lastWebColor.HSV = CHSV(package_hsv_hue,
-                            package_hsv_saturation,
-                            package_hsv_value);
-  }
-}
-
-void sendBooterJson(uint8_t num, uint8_t *payload, size_t length) {
-  String output;
-  StaticJsonDocument<192> doc;
-
-  doc["type"] = "Starting_Mod";
-  doc["mode"] = "Plain_Mod";
-
-  JsonObject package = doc.createNestedObject("package");
-
-  CRGB starterColor = findColorClosestToMean(leds, LED_NUMBER);
-
-  JsonObject package_rgb = package.createNestedObject("rgb");
-  package_rgb["red"] = starterColor.red;
-  package_rgb["green"] = starterColor.green;
-  package_rgb["blue"] = starterColor.blue;
-
-  serializeJson(doc, output);
-
-  webSocket.sendTXT(num, output.c_str());
-}
-
-void startWifi() {
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  WiFi.hostname("ESP8266_FastLED_Controller");
-  Serial.println("");
-  Serial.print("Connecting to WiFi ");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(50);
-    Serial.print(".");
-    box.indicatorLed->toggle();
-  }
-
-  delay(1500);
-  box.indicatorLed->turnOff();
-  Serial.println(" connected.\n");
-  Serial.print("Can connect with: ");
-  Serial.print("http://");
-  Serial.println(WiFi.localIP());
-  startmDNS();
-}
-
-void startmDNS() {
-  if (MDNS.begin(DNS_URL)) {
-
-    Serial.print("Can also connect from: ");
-    Serial.print("http://");
-    Serial.print(DNS_URL);
-    Serial.print(".local\n");
-  }
-  MDNS.addService("http", "tcp", 80);
-}
-
-void tickServer() {
-  MDNS.update();
-  server.handleClient();
-  webSocket.loop();
-}
+float lastAlpha = box.max_Brightness;
 
 typedef void (*Pattern)();
-typedef Pattern PatternList[];
+//typedef Pattern PatternList[];
 typedef struct {
   Pattern pattern;
   String name;
 } PatternAndName;
 typedef PatternAndName PatternAndNameList[];
+
+typedef struct {
+  TProgmemRGBPalette16 palette;
+  String name;
+} PaletteAndName;
+typedef PaletteAndName PaletteAndNameList[];
 
 template<typename T>
 void solid_Color(T colorElement) {
@@ -243,7 +156,8 @@ void sawtooth() {
   if (cur_led == 0)
     fill_solid(leds, LED_NUMBER, CRGB::Black);
   else
-    leds[cur_led] = ColorFromPalette(box.currentPalette, 0, 255, box.currentBlending);
+    //leds[cur_led] = ColorFromPalette(box.currentPalette, 0, 255, box.currentBlending);
+    leds[cur_led] = lastWebColor.RGB;
 }
 //Simple plain red
 void redColor() {
@@ -260,7 +174,7 @@ PatternAndNameList patterns = {
   { noise16_2, "Noise16_2" },
   { sawtooth, "Sawtooth" },
   { redColor, "Red" },
-  { webColor, "Web Color" }
+  { webColor, "Solid Color" }
 };
 
 const CRGBPalette16 palettes[] = {
@@ -273,6 +187,185 @@ const CRGBPalette16 palettes[] = {
   PartyColors_p,
   HeatColors_p
 };
+
+const String palette_names[] = {
+  "Rainbow",
+  "Rainbow Stripes",
+  "Cloud",
+  "Lava",
+  "Ocean",
+  "Forest",
+  "Party",
+  "Heat"
+};
+
+
+void handleWebSocketEventTXT(uint8_t num, uint8_t *payload, size_t length) {
+  //ColorPackageObject package(str);
+  StaticJsonDocument<256> doc;
+  //Serial.printf("[%u] get Text: %S\n", num, payload);
+  DeserializationError error = deserializeJson(doc, (const char *)payload, length);
+  if (error) {
+    Serial.print(F("deserializeJson() failed: "));
+    Serial.println(error.f_str());
+    return;
+  }
+
+  // Type
+  const String type = doc["type"];
+
+  // Sender
+  const uint8_t sender = doc["sender"];
+
+  // Color
+  if (type == "color") {
+    JsonObject rgba = doc["package"]["color"]["rgba"];
+    JsonObject hsv = doc["package"]["color"]["hsv"];
+
+    // Update Cache
+    lastWebColor.RGB = CRGB(rgba["r"], rgba["g"], rgba["b"]);
+    //Serial.printf("Color: | R: %-3d G: %-3d B: %-3d A: %-3.2f| H: %-3d S: %-3d V: %-3d \n", (uint8_t)rgba["r"], (uint8_t)rgba["g"], (uint8_t)rgba["b"], (float)rgba["a"], (uint8_t)hsv["h"], (uint8_t)hsv["s"], (uint8_t)hsv["v"]);
+
+    // Update Alpha
+    lastAlpha = rgba["a"];
+
+    // Mapped alpha , dividing by 8 to smooth
+    uint8_t mapped_alpha = map((float)rgba["a"] * 100, 0, 100, 0, box.max_Brightness);
+    box.current_Brightness = mapped_alpha;
+    FastLED.setBrightness(mapped_alpha);
+  }
+
+  // Pattern Index
+  if (type == "patternIndex") {
+    int patternIndex = doc["package"]["patternIndex"];
+    Serial.printf("%d", patternIndex);
+    Serial.printf("Pattern set to: %s\n", patterns[patternIndex].name);
+    box.patternCounter = patternIndex;
+  }
+
+  // Palette Index
+  if (type == "paletteIndex") {
+    int paletteIndex = doc["package"]["paletteIndex"];
+    Serial.printf("%d", paletteIndex);
+    Serial.printf("Pattern set to: %s\n", palette_names[paletteIndex]);
+    box.paletteCounter = paletteIndex;
+  }
+
+  // Broadcast update
+  for (uint8_t i = 0; i < webSocket.connectedClients(); i++) {
+    if (i != num) {
+      Serial.print("Sent to ");
+      Serial.println(i);
+      sendUpdateMessage(i, payload, length, type);
+    }
+  }
+}
+
+
+void startWifi() {
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+  WiFi.hostname("ESP8266_FastLED_Controller");
+  Serial.println("");
+  Serial.print("Connecting to WiFi ");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(50);
+    Serial.print(".");
+    box.indicatorLed->toggle();
+  }
+
+  delay(1500);
+  box.indicatorLed->turnOff();
+  Serial.println(" connected.\n");
+  Serial.print("Can connect with: ");
+  Serial.print("http://");
+  Serial.println(WiFi.localIP());
+  startmDNS();
+}
+
+void startmDNS() {
+  if (MDNS.begin(DNS_URL)) {
+
+    Serial.print("Can also connect from: ");
+    Serial.print("http://");
+    Serial.print(DNS_URL);
+    Serial.print(".local\n");
+  }
+  MDNS.addService("http", "tcp", 80);
+}
+
+void tickServer() {
+  MDNS.update();
+  server.handleClient();
+  webSocket.loop();
+}
+
+void sendUpdateMessage(uint8_t num, uint8_t *payload, size_t length, String type) {
+  String output;
+  StaticJsonDocument<256> doc;
+
+  JsonObject package = doc.createNestedObject("package");
+
+  // Color
+  if (type == "color") {
+    doc["type"] = "color";
+
+    JsonObject package_rgba = package.createNestedObject("rgba");
+    package_rgba["r"] = lastWebColor.RGB.red;
+    package_rgba["g"] = lastWebColor.RGB.green;
+    package_rgba["b"] = lastWebColor.RGB.blue;
+    package_rgba["a"] = lastAlpha;
+    ///// ?????? CHECK LATER
+
+    serializeJson(doc, output);
+    webSocket.sendTXT(num, output.c_str(), strlen(output.c_str()));
+  }
+
+  // Pattern Index
+  if (type == "patternIndex") {
+    doc["type"] = "patternIndex";
+    package["patternIndex"] = box.patternCounter;
+
+    serializeJson(doc, output);
+    webSocket.sendTXT(num, output.c_str(), strlen(output.c_str()));
+  }
+
+  // Palette Index
+  if (type == "paletteIndex") {
+    doc["type"] = "paletteIndex";
+    package["paletteIndex"] = box.paletteCounter;
+
+    serializeJson(doc, output);
+    webSocket.sendTXT(num, output.c_str(), strlen(output.c_str()));
+  }
+
+
+  Serial.println(output.c_str());
+}
+
+void sendStartMessage(uint8_t num, uint8_t *payload, size_t length) {
+  String output;
+  StaticJsonDocument<512> doc;
+
+  doc["type"] = "startMessage";
+  doc["userID"] = num;
+
+  JsonObject package = doc.createNestedObject("package");
+
+  JsonArray pattern_list = package.createNestedArray("pattern_list");
+  JsonArray palette_list = package.createNestedArray("palette_list");
+
+  for (int i = 0; i < box.patternCount; i++) {
+    pattern_list.add(patterns[i].name);
+  }
+
+  for (int i = 0; i < box.paletteCount; i++) {
+    palette_list.add(palette_names[i]);
+  }
+
+  serializeJson(doc, output);
+
+  webSocket.sendTXT(num, output.c_str());
+}
 
 void handleIRremote() {
   if (irrecv.decode(&results)) {
@@ -358,6 +451,7 @@ void handleIRremote() {
     irrecv.resume();
   }
 }
+
 //Main function to controll switches and potentiometer.
 void handleCircuitBox() {
   if (box.didPotChange()) {
@@ -372,6 +466,7 @@ void handleCircuitBox() {
         box.handlePatternChange();
         break;
     }
+    //**************************************************************************************************************
     //Has an delay because it runs faster then switch is fliped
     EVERY_N_MILLISECONDS(300) {
       box.announceControlSwitchChange();
@@ -389,7 +484,7 @@ void setup() {
 
   //Updating current pattern and palette count after initiation
   box.patternCount = sizeof(patterns) / sizeof((patterns)[0]);
-  box.paletteCount = sizeof(patterns) / sizeof((patterns)[0]);
+  box.paletteCount = sizeof(palettes) / sizeof((palettes)[0]);
 
   box.targetPalette = palettes[random(0, box.paletteCount)];
 
@@ -437,7 +532,6 @@ bool handleFileRead(String path) {
   return false;
 }
 
-
 void loop() {
   handleCircuitBox();
 
@@ -449,14 +543,16 @@ void loop() {
   }
 
   //Check the environment every 5 seconds for updates.
-  EVERY_N_SECONDS(5) {
+  EVERY_N_SECONDS(1) {
     box.handleLightSensor(20);
   }
+
+  //Serial.println(FastLED.getBrightness());
 
   //Updates target palette according the  operations done to paletteCounter
   box.targetPalette = palettes[box.paletteCounter];
 
-  //Blend a bit each 50 millisecond to next color pallete.
+  //Blend a bit each 50 millisecond to next color palette.
   EVERY_N_MILLISECONDS(50) {
     nblendPaletteTowardPalette(box.currentPalette, box.targetPalette, 24);
   }
