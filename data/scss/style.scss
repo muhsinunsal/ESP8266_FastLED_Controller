@@ -1,0 +1,135 @@
+@use "basic_configs.scss";
+@font-face {
+	font-family: "Poppins";
+	src: url("./../fonts/Poppins-Regular.ttf");
+	font-weight: normal;
+	font-style: normal;
+}
+@font-face {
+	font-family: "Patua One";
+	src: url("./../fonts/PatuaOne-Regular.ttf");
+	font-weight: normal;
+	font-style: normal;
+}
+
+$text: #e8eded;
+$background: #111415;
+$primary: #b1c0c0;
+$secondary: #4f5762;
+$accent: #8a8fa1;
+html body {
+	margin: 0;
+	padding: 0;
+}
+* {
+	outline: 1px transparent solid;
+	// outline: red 1px solid;
+}
+.container {
+	margin: 0 auto;
+	max-width: 90%;
+	padding: 1rem;
+}
+body {
+	font-family: "Poppins";
+	font-weight: 400;
+	color: $text;
+	background-color: $background;
+}
+nav {
+	text-align: center;
+	h1,
+	h3 {
+		color: $text;
+	}
+	h3,
+	h5 {
+		display: none;
+	}
+}
+
+main .container {
+	display: flex;
+	justify-content: space-evenly;
+}
+footer {
+	position: absolute;
+	width: 100%;
+	bottom: 0;
+	background-color: $secondary;
+	border-top: 1px solid $accent;
+	.container {
+		text-align: center;
+	}
+}
+
+select {
+	/* Reset */
+	appearance: none;
+	border: 0;
+	outline: 0;
+	font: inherit;
+	/* Personalize */
+	width: 15em;
+	height: 3em;
+	//padding: 0 4em 0 1em;
+	//margin: 1em;
+	background: no-repeat right 0.8em center / 1.4em, linear-gradient(to left, $secondary 3em, $primary 3em);
+	color: $background;
+	border-radius: 0.25em;
+	box-shadow: 0 0 1em 0 rgba(0, 0, 0, 0.2);
+	cursor: pointer;
+	/* <option> colors */
+	option {
+		color: $text;
+		background-color: $secondary;
+		text-align: center;
+	}
+
+	/* Remove focus outline */
+	&:focus {
+		outline: none;
+	}
+	/* Remove IE arrow */
+	&::-ms-expand {
+		display: none;
+	}
+}
+
+.desktop {
+	display: block !important;
+	&-error {
+		color: #c51e3a;
+	}
+}
+.mobile {
+	display: none !important;
+	&-error {
+		color: #c51e3a;
+	}
+}
+.showen {
+	display: block;
+}
+@media screen and (max-width: 900px) {
+	html {
+		font-size: 16px;
+	}
+	.desktop {
+		display: none !important;
+	}
+	.mobile {
+		display: block !important;
+	}
+	main .container {
+		flex-direction: column;
+		height: 70vh;
+		align-items: center;
+		justify-content: space-around;
+	}
+	.selectors{
+		display: flex;
+		flex-direction: column;
+		
+	}
+}

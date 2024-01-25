@@ -57,6 +57,7 @@ socket.onopen = function (e) {
             rgba: color.rgba,
             hsv: color.hsv
         };
+
         //console.table(newColorVar)
 
         if (socket.readyState === socket.OPEN) {
@@ -69,6 +70,9 @@ socket.onopen = function (e) {
         } else {
             socket_status_symbol.style.backgroundColor = "#800000"; // #88534D
             socket_status_symbol.innerHTML = "✖";
+            document.querySelector(".desktop-error").classList.add("showen")
+            document.querySelector(".mobile-error").classList.add("showen")
+
         }
     });
 };
@@ -89,8 +93,11 @@ socket.onmessage = function (e) {
             // Assign number to client
             own_ID = json_message.userID;
             const idElement = document.getElementById("clientID");
-            idElement.innerHTML = own_ID;
+            idElement.innerHTML = `You're ${own_ID + 1}st user`;
 
+            // Clear Options
+            patternDropdown_Element.innerHTML = "";
+            paletteDropdown_Element.innerHTML = "";
             // Fill up Pattern Options
             for (let i = 0; i < json_message.package.pattern_list.length; i++) {
                 const element = document.createElement("option");
@@ -120,7 +127,7 @@ socket.onmessage = function (e) {
                 ignoreFlag = false;
             }, 100);
 
-            if(ignoreFlag){
+            if (ignoreFlag) {
                 let rgba = json_message.package.rgba
                 colorPicker.color.rgba = rgba
             }
@@ -149,18 +156,24 @@ paletteDropdown_Element.addEventListener("change", (e) => {
 });
 
 let sliderDirection;
-var colorPicker = new iro.ColorPicker("main", {
+var colorPicker = new iro.ColorPicker("#color_picker", {
     wheelLightness: false,
     margin: 20,
     layout: [
         {
             component: iro.ui.Wheel,
+            options: {
+                borderWidth: 5
+            }
         },
         {
             component: iro.ui.Slider,
             options: {
-                sliderType: 'alpha'
+                sliderType: 'alpha',
+                borderWidth: 2
+
             }
+
         },
     ],
     layoutDirection: sliderDirection,

@@ -1,46 +1,52 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>LedBox 0.1</title>
-    <script src="iro.min.js"></script>
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>LedBox 0.1</title>
+		<script src="script/iro.min.js"></script>
 
-    <link rel="stylesheet" href="style.css" />
-  </head>
-  <body>
-    <div id="container">
-      <!--Select-->
-      <!--https://codepen.io/raubaca/pen/bGWmZje -->
-      <div id="socket_status_symbol" class="loading">
-        <div class="dot"></div>
-        <div class="dot"></div>
-        <div class="dot"></div>
-      </div>
-      <header><h1>Mode</h1></header>
-      <nav>
-        <select
-          id="pattern_selector"
-          class="dropdown_selector"
-          style="margin-bottom: 1rem"
-        ></select>
-        <select id="palette_selector" class="dropdown_selector"></select>
-      </nav>
-      <main><!-- Does get filled by JS --></main>
-      <footer>
-        <h2 style="text-align: center">Hello There</h2>
-        <h3
-          id="clientID"
-          class="loading"
-          style="text-align: center;"
-        >
-          <div class="dot"></div>
-          <div class="dot"></div>
-          <div class="dot"></div>
-        </h3>
-      </footer>
-    </div>
-    <script src="script.js"></script>
-  </body>
+		<link rel="stylesheet" href="css/style.css" />
+	</head>
+	<body>
+		<nav>
+			<div class="container">
+				<h1 class="desktop">ESP8266_FastLED_Controller</h1>
+				<h3 class="desktop-error">You'r not connected</h3>
+				<h4 class="mobile">ESP8266_FastLED_Controller</h4>
+				<h5 class="mobile-error">You'r not connected</h5>
+
+			</div>
+		</nav>
+		<main>
+			<div class="container">
+				<div class="selectors">
+					<select id="pattern_selector" class="dropdown_selector" style="margin-bottom: 1rem">
+						<option value="Hmm">Hmm</option>
+					</select>
+					<select id="palette_selector" class="dropdown_selector">
+						<option value="Hmm">Hmm</option>
+					</select>
+				</div>
+				<!-- <div id="socket_status_symbol" class="loading">
+					<div class="dot"></div>
+					<div class="dot"></div>
+					<div class="dot"></div>
+				</div> -->
+				<main><!-- Does get filled by JS --></main>
+				<div id="color_picker"></div>
+			</div>
+		</main>
+		<footer>
+			<div class="container">
+				<span id="clientID" class="loading" style="text-align: center">
+					<div class="dot"></div>
+					<div class="dot"></div>
+					<div class="dot"></div>
+				</span>
+			</div>
+		</footer>
+	</body>
+	<script src="script/script.js"></script>
 </html>
