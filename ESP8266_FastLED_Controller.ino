@@ -214,50 +214,40 @@ void handleWebSocketEventTXT(uint8_t num, uint8_t *payload, size_t length) {
   // Type
   const String type = doc["type"];
 
-  // Sender
-  const uint8_t sender = doc["sender"];
-
-  // Color
-  if (type == "color") {
-    JsonObject rgba = doc["package"]["color"]["rgba"];
-    JsonObject hsv = doc["package"]["color"]["hsv"];
-
-    // Update Cache
+  if (type == "updateMessage") {
+    // Color
+    JsonObject rgba = doc["rgba"];
+    JsonObject hsv = doc["hsv"];
     lastWebColor.RGB = CRGB(rgba["r"], rgba["g"], rgba["b"]);
-    //Serial.printf("Color: | R: %-3d G: %-3d B: %-3d A: %-3.2f| H: %-3d S: %-3d V: %-3d \n", (uint8_t)rgba["r"], (uint8_t)rgba["g"], (uint8_t)rgba["b"], (float)rgba["a"], (uint8_t)hsv["h"], (uint8_t)hsv["s"], (uint8_t)hsv["v"]);
-
-    // Update Alpha
     lastAlpha = rgba["a"];
+    //Serial.printf("Color: | R: %-3d G: %-3d B: %-3d A: %-3.2f| H: %-3d S: %-3d V: %-3d \n", (uint8_t)rgba["r"], (uint8_t)rgba["g"], (uint8_t)rgba["b"], (float)rgba["a"], (uint8_t)hsv["h"], (uint8_t)hsv["s"], (uint8_t)hsv["v"]);
 
     // Mapped alpha , dividing by 8 to smooth
     uint8_t mapped_alpha = map((float)rgba["a"] * 100, 0, 100, 0, box.max_Brightness);
     box.current_Brightness = mapped_alpha;
     FastLED.setBrightness(mapped_alpha);
-  }
 
-  // Pattern Index
-  if (type == "patternIndex") {
-    int patternIndex = doc["package"]["patternIndex"];
-    Serial.printf("%d", patternIndex);
-    Serial.printf("Pattern set to: %s\n", patterns[patternIndex].name);
+
+    // Pattern Index
+    int patternIndex = doc["patternIndex"];
+    Serial.printf("Pattern set to: %d - %s\n",patternIndex, palette_names[patternIndex]);
     box.patternCounter = patternIndex;
-  }
 
-  // Palette Index
-  if (type == "paletteIndex") {
-    int paletteIndex = doc["package"]["paletteIndex"];
-    Serial.printf("%d", paletteIndex);
-    Serial.printf("Pattern set to: %s\n", palette_names[paletteIndex]);
+    // Palette Index
+    int paletteIndex = doc["paletteIndex"];
+    Serial.printf("Palette set to: %d - %s\n",paletteIndex, palette_names[paletteIndex]);
     box.paletteCounter = paletteIndex;
-  }
 
-  // Broadcast update
-  for (uint8_t i = 0; i < webSocket.connectedClients(); i++) {
-    if (i != num) {
-      Serial.print("Sent to ");
-      Serial.println(i);
-      sendUpdateMessage(i, payload, length, type);
+    // Broadcast update
+    for (uint8_t i = 0; i < webSocket.connectedClients(); i++) {
+      if (i != num) {
+        Serial.print("Sent to %d");
+        Serial.println(i);
+        sendUpdateMessage(i, payload, length, type);
+      }
     }
+  } else if (type == "startMessage") {
+    // ESP8266 can't recive startMessage
   }
 }
 
@@ -303,43 +293,26 @@ void sendUpdateMessage(uint8_t num, uint8_t *payload, size_t length, String type
   String output;
   StaticJsonDocument<256> doc;
 
-  JsonObject package = doc.createNestedObject("package");
+  doc["type"] = "updateMessage";
+  doc["senderID"] = num;  // ?? num doğru olmayabilir
+  JsonObject rgba = doc.createNestedObject("rgba");
+  rgba["r"] = lastWebColor.RGB.red;
+  rgba["g"] = lastWebColor.RGB.green;
+  rgba["b"] = lastWebColor.RGB.blue;
+  rgba["a"] = lastAlpha;
 
-  // Color
-  if (type == "color") {
-    doc["type"] = "color";
+  JsonObject hsv = doc.createNestedObject("hsv");
+  hsv["h"] = lastWebColor.HSV.hue;
+  hsv["s"] = lastWebColor.HSV.saturation;
+  hsv["v"] = lastWebColor.HSV.value;
 
-    JsonObject package_rgba = package.createNestedObject("rgba");
-    package_rgba["r"] = lastWebColor.RGB.red;
-    package_rgba["g"] = lastWebColor.RGB.green;
-    package_rgba["b"] = lastWebColor.RGB.blue;
-    package_rgba["a"] = lastAlpha;
-    ///// ?????? CHECK LATER
+  doc["patternIndex"] = box.patternCounter;
+  doc["paletteIndex"] = box.paletteCounter;
 
-    serializeJson(doc, output);
-    webSocket.sendTXT(num, output.c_str(), strlen(output.c_str()));
-  }
+  serializeJson(doc, output);
+  webSocket.sendTXT(num, output.c_str(), strlen(output.c_str()));
 
-  // Pattern Index
-  if (type == "patternIndex") {
-    doc["type"] = "patternIndex";
-    package["patternIndex"] = box.patternCounter;
-
-    serializeJson(doc, output);
-    webSocket.sendTXT(num, output.c_str(), strlen(output.c_str()));
-  }
-
-  // Palette Index
-  if (type == "paletteIndex") {
-    doc["type"] = "paletteIndex";
-    package["paletteIndex"] = box.paletteCounter;
-
-    serializeJson(doc, output);
-    webSocket.sendTXT(num, output.c_str(), strlen(output.c_str()));
-  }
-
-
-  Serial.println(output.c_str());
+  // Serial.println(output.c_str());
 }
 
 void sendStartMessage(uint8_t num, uint8_t *payload, size_t length) {
@@ -347,19 +320,17 @@ void sendStartMessage(uint8_t num, uint8_t *payload, size_t length) {
   StaticJsonDocument<512> doc;
 
   doc["type"] = "startMessage";
-  doc["userID"] = num;
+  doc["assignedID"] = num;
 
-  JsonObject package = doc.createNestedObject("package");
-
-  JsonArray pattern_list = package.createNestedArray("pattern_list");
-  JsonArray palette_list = package.createNestedArray("palette_list");
+  JsonArray patternList = doc.createNestedArray("patternList");
+  JsonArray paletteList = doc.createNestedArray("paletteList");
 
   for (int i = 0; i < box.patternCount; i++) {
-    pattern_list.add(patterns[i].name);
+    patternList.add(patterns[i].name);
   }
 
   for (int i = 0; i < box.paletteCount; i++) {
-    palette_list.add(palette_names[i]);
+    paletteList.add(palette_names[i]);
   }
 
   serializeJson(doc, output);
